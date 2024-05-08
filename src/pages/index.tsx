@@ -1,118 +1,188 @@
-import Image from "next/image";
-import { Inter } from "next/font/google";
+import { useState, useEffect, useRef, ChangeEvent } from 'react';
 
-const inter = Inter({ subsets: ["latin"] });
+interface Task {
+  task: string;
+  startTime?: Date;
+  endTime?: Date;
+}
+
+interface CompletedTask {
+  task: string;
+  duration: number;
+}
 
 export default function Home() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
+  const [taskInput, setTaskInput] = useState<string>('');
+  const [currentTask, setCurrentTask] = useState<Task | null>(null);
+  const [timeElapsed, setTimeElapsed] = useState<number>(0);
+  const popSoundRef = useRef<HTMLAudioElement | null>(typeof Audio !== "undefined" ? new Audio('/pop.mp3') : null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const addTask = () => {
+    if (taskInput) {
+      const newTask: Task = { task: taskInput };
+      setTasks(prevTasks => [...prevTasks, newTask]);
+      setTaskInput('');
+    } else {
+      alert('Please enter a valid task.');
+    }
+  };
+
+  const popTask = () => {
+    if (tasks.length > 0) {
+      if (currentTask) {
+        completeCurrentTask();
+      }
+      if (popSoundRef.current) {
+        popSoundRef.current.play();
+      }
+      const nextTask = { ...tasks[0], startTime: new Date() };
+      setCurrentTask(nextTask);
+      setTasks(prevTasks => prevTasks.slice(1));
+      setTimeElapsed(0);
+    } else {
+      alert('No tasks to pop.');
+    }
+  };
+
+  const completeCurrentTask = () => {
+    if (currentTask && currentTask.startTime) {
+      const endTime = new Date();
+      const duration = (endTime.getTime() - currentTask.startTime.getTime()) / 1000; // Duration in seconds
+      const completedTask = { task: currentTask.task, duration };
+      setCompletedTasks(prev => [...prev, completedTask]);
+    }
+  };
+
+  const moveTaskUp = (index: number) => {
+    if (index > 0) {
+      setTasks(prevTasks => {
+        const newTasks = [...prevTasks];
+        [newTasks[index - 1], newTasks[index]] = [newTasks[index], newTasks[index - 1]];
+        return newTasks;
+      });
+    }
+  };
+
+  const moveTaskDown = (index: number) => {
+    if (index < tasks.length - 1) {
+      setTasks(prevTasks => {
+        const newTasks = [...prevTasks];
+        [newTasks[index + 1], newTasks[index]] = [newTasks[index], newTasks[index + 1]];
+        return newTasks;
+      });
+    }
+  };
+
+  const completeTask = () => {
+    if (currentTask) {
+      completeCurrentTask();
+    }
+    setCurrentTask(null);
+    clearInterval(intervalRef.current!);
+  };
+
+  useEffect(() => {
+    if (currentTask) {
+      intervalRef.current = setInterval(() => {
+        setTimeElapsed(prevTime => prevTime + 1);
+      }, 1000);
+    }
+
+    return () => {
+      clearInterval(intervalRef.current!);
+    };
+  }, [currentTask]);
+
+  const calculateSegments = (duration: number) => {
+    return Math.ceil(duration / 600);
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const hrs = Math.floor(mins / 60);
+    const minutes = mins % 60;
+    if (hrs > 0) {
+      return `${hrs}h ${minutes}m`; // Hours and minutes
+    } else {
+      return `${mins}m`; // Only minutes
+    }
+  };
+
   return (
-    <main
-      className={`flex min-h-screen flex-col items-center justify-between p-24 ${inter.className}`}
-    >
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/pages/index.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <div className='flex flex-col max-w-xl mx-auto mt-5 font-mono p-2'>
+      <div className='flex justify-between gap-2 items-center pb-5'>
+        <h1 className='flex-1 font-medium text-xl'>
+          PopTask
+        </h1>
+      </div>
+      <div className='flex w-full justify-between border-b border-black py-5 gap-5'>
+        <div className="flex-1 gap-2 flex flex-col">
+          <input
+            id="taskInput"
+            type="text"
+            value={taskInput}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setTaskInput(e.target.value)}
+            placeholder="Enter new task"
+            className='w-full'
+          />
         </div>
+        <button className='border-black self-start px-2 border-2' onClick={addTask}>Add task</button>
       </div>
-
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-full sm:before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full sm:after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700/10 after:dark:from-sky-900 after:dark:via-[#0141ff]/40 before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
+      <div className='flex gap-2 border-b border-black justify-between py-5 items-center'>
+        <div className={`flex-1 ${currentTask ? 'bg-orange-300' : ''}`}>{currentTask ? `${Math.floor(timeElapsed / 60)}m ${timeElapsed % 60}s - ${currentTask.task}` : `Nothing in progress`}</div>
+        {currentTask && <button className='border-black px-2 border-2' onClick={completeTask}>End</button>}
+        {tasks.length > 0 && <button className='border-black px-2 border-2' onClick={popTask}>Start next</button>}
       </div>
+      {
+        tasks.length > 0 && <div className='flex flex-col gap-2 py-5'>
+          <h2 className='font-bold'>Queue</h2>
+          {tasks.map((task, index) => (
+            <div key={index} className='flex justify-between'>
+              <div> {task.task} {index === 0 ? '(Up next)' : ''}</div>
+              <div>
+                {index != 0 && <button onClick={() => moveTaskUp(index)}>[+]</button>}
+                <button onClick={() => moveTaskDown(index)}>[-]</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      }
 
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
+      {completedTasks.length > 0 && (
+        <div className='flex flex-col py-5 gap-2'>
+          <h2 className='font-bold'>Completed</h2>
+          {completedTasks.map((task, index) => (
+            <div key={index} className='flex justify-between items-center'>
+              <span>{task.task} ({formatDuration(task.duration)})</span>
+              <div className='task-segments'>
+                {[...Array(calculateSegments(task.duration))].map((_, idx) => (
+                  <div key={idx} className='time-segment'></div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+      <style jsx>{`
+        .task-summary {
+          margin-top: 10px;
+        }
+        .task-segments {
+          display: flex;
+        }
+        .time-segment {
+          width: 20px;
+          height: 20px;
+          margin-right: 5px;
+          background-color: blue;
+          display: inline-block;
+        }
+      `}</style>
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Discover and deploy boilerplate example Next.js&nbsp;projects.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50 text-balance`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+    </div>
   );
 }
